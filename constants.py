@@ -8,6 +8,7 @@ import os
 
 # Data directory
 DATA_DIR = "data"
+DATA_WEATHER_DIR = "data/weather_data"
 
 # File paths
 FIRE_FILE = os.path.join(DATA_DIR, "fires", "fires.csv")

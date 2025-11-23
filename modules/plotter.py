@@ -1,5 +1,4 @@
 # modules/plotter.py
-
 """
 Module for plotting time-series data.
 """
@@ -8,19 +7,19 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-import logging
 
-def plot_series(df, date_col, y_cols, days_lookback, title, plot_type, chart_key):
+def plot_series(df, date_col, y_cols, days_lookback, title, plot_type, chart_key, group_by_day=True):
     """
-    Plots a time-series graph based on aggregated data.
+    Plots a time-series graph.
 
-    @param df: DataFrame containing the data.
+    @param df: DataFrame with data.
     @param date_col: Name of the date column.
-    @param y_cols: List of columns to plot on the Y-axis.
-    @param days_lookback: Number of days back to filter the data.
-    @param title: Title of the plot.
-    @param plot_type: Type of plot ('Линейный', 'Гистограмма', 'Точечный (scatter)').
-    @param chart_key: Unique key for the Streamlit plot element.
+    @param y_cols: List of Y-axis columns.
+    @param days_lookback: Number of days to show.
+    @param title: Plot title.
+    @param plot_type: 'Линейный', 'Гистограмма', 'Точечный (scatter)'.
+    @param chart_key: Unique key for Streamlit.
+    @param group_by_day: If True — aggregate by day (default). If False — show raw data (for multi-year plots).
     """
     if date_col not in df.columns:
         st.warning(f"Колонка даты '{date_col}' не найдена")
@@ -39,44 +38,39 @@ def plot_series(df, date_col, y_cols, days_lookback, title, plot_type, chart_key
         st.info(f"Нет данных за последние {days_lookback} дней (до {max_date.date()})")
         return
 
-    df["День"] = df[date_col].dt.date
+    if group_by_day:
+        df["День"] = df[date_col].dt.date
+        agg_dict = {}
+        for col in y_cols:
+            if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
+                agg_dict[col] = "mean"
+        if not agg_dict:
+            st.warning("Нет числовых колонок для отображения")
+            return
+        df_agg = df.groupby("День").agg(agg_dict).reset_index()
+        df_agg["День"] = pd.to_datetime(df_agg["День"])
+        x_col = "День"
+    else:
+        df_agg = df.copy()
+        x_col = date_col
 
-    # Safe aggregation
-    agg_dict = {}
-    for col in y_cols:
-        if col not in df.columns:
-            continue
-        if pd.api.types.is_numeric_dtype(df[col]):
-            agg_dict[col] = "mean"
-        else:
-            agg_dict[col] = "count"  # or "nunique"
-
-    if not agg_dict:
-        st.warning("Нет колонок для отображения")
-        return
-
-    df_agg = df.groupby("День").agg(agg_dict).reset_index()
-    df_agg["День"] = pd.to_datetime(df_agg["День"])
-
-    # Plotting
     if plot_type == "Линейный":
         fig = go.Figure()
         for col in y_cols:
             if col in df_agg.columns:
-                fig.add_trace(go.Scatter(x=df_agg["День"], y=df_agg[col], mode='lines+markers', name=col))
+                fig.add_trace(go.Scatter(x=df_agg[x_col], y=df_agg[col], mode='lines+markers', name=col))
         fig.update_layout(title=title, xaxis_title="Дата", yaxis_title="Значение")
     elif plot_type == "Гистограмма":
-        fig = px.bar(df_agg, x="День", y=y_cols, title=title)
+        fig = px.bar(df_agg, x=x_col, y=y_cols, title=title)
         fig.update_layout(xaxis_title="Дата", yaxis_title="Значение")
     elif plot_type == "Точечный (scatter)":
         fig = go.Figure()
         for col in y_cols:
             if col in df_agg.columns:
-                fig.add_trace(go.Scatter(x=df_agg["День"], y=df_agg[col], mode='markers', name=col))
+                fig.add_trace(go.Scatter(x=df_agg[x_col], y=df_agg[col], mode='markers', name=col))
         fig.update_layout(title=title, xaxis_title="Дата", yaxis_title="Значение")
     else:
         st.warning("Неизвестный тип графика")
         return
 
     st.plotly_chart(fig, use_container_width=True, key=chart_key)
-

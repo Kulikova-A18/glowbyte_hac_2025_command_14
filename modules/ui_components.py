@@ -1,217 +1,65 @@
-# modules/ui_components.py
-
 """
-Module for UI components and interaction logic.
+Main UI composition module. Orchestrates all components.
+All displayed text is in Russian.
 """
 
 import streamlit as st
-from modules.data_loader import load_csv
-from modules.plotter import plot_series
-from modules.schedule_manager import save_schedule
-from constants import FIRE_FILE, SUPPLIES_FILE, TEMP_FILE, WEATHER_DIR
-import logging
 import os
+import datetime
+from modules.global_weather import render_global_weather
+from modules.config_forms import (
+    show_supplies_dialog,
+    show_fires_dialog,
+    show_temperature_dialog,
+    show_weather_dialog
+)
+from modules.sections import render_section
+from modules.schedule_manager import load_schedule
+from constants import DATA_DIR
+from modules.add_weather_file import handle_add_weather_file
+from modules.generate_report import generate_comprehensive_report
 
-def show_standard_config(category, file_path, default_date_col, default_y_cols, title_base):
-    """
-    Displays the configuration form for a standard data category.
-
-    @param category: Key for the category (e.g., 'supplies', 'fires').
-    @param file_path: Path to the CSV file for this category.
-    @param default_date_col: Default date column name.
-    @param default_y_cols: Default Y-axis columns.
-    @param title_base: Base title for the expander.
-    """
-    if st.session_state.show_config[category]:
-        with st.expander(f"Настройка: {title_base}", expanded=True):
-            df_preview = load_csv(file_path)
-            if df_preview.empty:
-                st.error("Не удалось загрузить файл")
-                st.session_state.show_config[category] = False
-                st.rerun()
-                return
-
-            date_candidates = [col for col in df_preview.columns if "дата" in col.lower() or "date" in col.lower()]
-            if not date_candidates:
-                date_candidates = df_preview.select_dtypes(include=["object", "datetime"]).columns.tolist()
-            date_col = st.selectbox("Колонка с датой", date_candidates, key=f"date_{category}")
-
-            value_cols = [col for col in df_preview.columns if col != date_col]
-            y_cols = st.multiselect("Параметры (ось Y)", value_cols, default=default_y_cols, key=f"ycols_{category}")
-
-            params_str = "_".join(y_cols[:3]) if y_cols else "без_параметров"
-            auto_name = f"{os.path.splitext(os.path.basename(file_path))[0]}_{params_str}"
-            custom_name = st.text_input("Название графика", key=f"name_{category}")
-            st.caption(f"Если оставить пустым, будет использовано: {auto_name}")
-            display_name = custom_name.strip() if custom_name.strip() else auto_name
-
-            days = st.slider("Данные за последние (дней)", 1, 365, 90, key=f"days_{category}")
-            plot_type = st.selectbox("Тип графика", ["Линейный", "Гистограмма", "Точечный (scatter)"], key=f"type_{category}")
-
-            col_btn1, col_btn2 = st.columns(2)
-            if col_btn1.button("Создать график", key=f"create_{category}"):
-                st.session_state.graphs[category].append({
-                    "id": st.session_state.next_id,
-                    "file": file_path,
-                    "date_col": date_col,
-                    "y_cols": y_cols,
-                    "days": days,
-                    "plot_type": plot_type,
-                    "title": display_name
-                })
-                st.session_state.next_id += 1
-                st.session_state.show_config[category] = False
-                persist_changes()
-                logging.info(f"Добавлен график в {category}: {display_name}")
-                st.rerun()
-
-            if col_btn2.button("Отмена", key=f"cancel_{category}"):
-                st.session_state.show_config[category] = False
-                st.rerun()
-
-def show_weather_config():
-    """
-    Displays the configuration form for weather data with year selection.
-    """
-    if st.session_state.show_config["weather"]:
-        if not os.path.exists(WEATHER_DIR):
-            st.error("Папка weather_data не найдена")
-            st.session_state.show_config["weather"] = False
-            st.rerun()
-            return
-
-        weather_files = [f for f in os.listdir(WEATHER_DIR) if f.endswith(".csv")]
-        if not weather_files:
-            st.error("Папка weather_data пуста")
-            st.session_state.show_config["weather"] = False
-            st.rerun()
-            return
-
-        years = []
-        for f in weather_files:
-            try:
-                year = int(f.replace("weather_data_", "").replace(".csv", ""))
-                years.append(year)
-            except ValueError:
-                continue
-        if not years:
-            st.error("Не найдено файлов в формате weather_data_YYYY.csv")
-            st.session_state.show_config["weather"] = False
-            st.rerun()
-            return
-
-        years = sorted(set(years))
-        with st.expander("Настройка: Погода", expanded=True):
-            selected_year = st.selectbox("Выберите год", years, key="year_weather_select")
-            selected_file = f"weather_data_{selected_year}.csv"
-            file_path = os.path.join(WEATHER_DIR, selected_file)
-
-            df_preview = load_csv(file_path)
-            if df_preview.empty:
-                st.error("Не удалось загрузить файл")
-                st.session_state.show_config["weather"] = False
-                st.rerun()
-                return
-
-            date_candidates = [col for col in df_preview.columns if "дата" in col.lower() or "date" in col.lower()]
-            if not date_candidates:
-                date_candidates = df_preview.select_dtypes(include=["object", "datetime"]).columns.tolist()
-            date_col = st.selectbox("Колонка с датой", date_candidates, key="date_weather")
-
-            value_cols = [col for col in df_preview.columns if col != date_col]
-            y_cols = st.multiselect("Параметры (ось Y)", value_cols, default=["t", "precipitation"], key="ycols_weather")
-
-            params_str = "_".join(y_cols[:3]) if y_cols else "без_параметров"
-            auto_name = f"{os.path.splitext(selected_file)[0]}_{params_str}"
-            custom_name = st.text_input("Название графика", key="name_weather")
-            st.caption(f"Если оставить пустым, будет использовано: {auto_name}")
-            display_name = custom_name.strip() if custom_name.strip() else auto_name
-
-            days = st.slider("Данные за последние (дней)", 1, 365, 90, key="days_weather")
-            plot_type = st.selectbox("Тип графика", ["Линейный", "Гистограмма", "Точечный (scatter)"], key="type_weather")
-
-            col_btn1, col_btn2 = st.columns(2)
-            if col_btn1.button("Создать график", key="create_weather"):
-                st.session_state.graphs["weather"].append({
-                    "id": st.session_state.next_id,
-                    "file": file_path,
-                    "date_col": date_col,
-                    "y_cols": y_cols,
-                    "days": days,
-                    "plot_type": plot_type,
-                    "title": display_name
-                })
-                st.session_state.next_id += 1
-                st.session_state.show_config["weather"] = False
-                persist_changes()
-                logging.info(f"Добавлен график в weather: {display_name}")
-                st.rerun()
-
-            if col_btn2.button("Отмена", key="cancel_weather"):
-                st.session_state.show_config["weather"] = False
-                st.rerun()
-
-def persist_changes():
-    """
-    Saves the current state of graphs to the schedule file.
-    """
-    data_to_save = {
-        "supplies": st.session_state.graphs["supplies"],
-        "fires": st.session_state.graphs["fires"],
-        "temperature": st.session_state.graphs["temperature"],
-        "weather": st.session_state.graphs["weather"],
-        "next_id": st.session_state.next_id
-    }
-    save_schedule(data_to_save)
-
-def render_section(section_key, section_title):
-    """
-    Renders a section of graphs based on the category key.
-
-    @param section_key: Key for the category (e.g., 'supplies', 'fires').
-    @param section_title: Title to display for the section.
-    """
-    st.markdown(f"## {section_title}")
-    if st.session_state.graphs[section_key]:
-        plots = st.session_state.graphs[section_key]
-        for i in range(0, len(plots), 2):
-            cols = st.columns(2)
-            for j, cfg in enumerate(plots[i:i+2]):
-                with cols[j]:
-                    st.markdown(f"### {cfg['title']}")
-                    df = load_csv(cfg["file"])
-                    if not df.empty:
-                        plot_series(
-                            df=df,
-                            date_col=cfg["date_col"],
-                            y_cols=cfg["y_cols"],
-                            days_lookback=cfg["days"],
-                            title=cfg["title"],
-                            plot_type=cfg["plot_type"],
-                            chart_key=f"chart_{section_key}_{cfg['id']}"
-                        )
-                    if st.button("Удалить", key=f"del_{section_key}_{cfg['id']}"):
-                        st.session_state.graphs[section_key] = [
-                            g for g in st.session_state.graphs[section_key] if g["id"] != cfg["id"]
-                        ]
-                        persist_changes()
-                        logging.info(f"Удалён график ID {cfg['id']} из {section_key}")
-                        st.rerun()
-    else:
-        st.info(f"Нет графиков. Нажмите кнопку выше.")
-
-# -------------------------------
-# Main UI Components
 
 def render_header():
-    """
-    Renders the main header and metrics.
-    """
-    import datetime
-    from constants import DATA_DIR
+    """Renders the main header with date, metrics, and action buttons."""
+    st.set_page_config(
+        page_title="Прогноз самовозгорания угля",
+        layout="wide",
+        initial_sidebar_state="expanded",
+        page_icon=""
+    )
 
-    st.set_page_config(page_title="Прогноз самовозгорания угля", layout="wide")
-    st.title("Прогноз самовозгорания угля")
+    st.markdown("""
+    <style>
+    body {
+        background-color: #f5f5f5;
+        color: #333333;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .stButton > button {
+        background: linear-gradient(to bottom right, #4a90e2, #7fbaf5) !important;
+        color: white !important;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        padding: 8px 16px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        width: 100%;
+    }
+    .stButton > button:hover {
+        background: linear-gradient(to bottom right, #3a7bc8, #6aa5d9) !important;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.2) !important;
+    }
+    .header-container {
+        background: linear-gradient(to bottom right, #4a90e2, #7fbaf5);
+        color: white;
+        border-radius: 12px;
+        padding: 28px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     now = datetime.datetime.now()
     all_files = []
@@ -219,37 +67,62 @@ def render_header():
         for f in files:
             if f.endswith(".csv"):
                 all_files.append(f)
-
-    st.metric("Текущая дата и время", now.strftime("%d.%m.%Y %H:%M"))
-    st.metric("Всего CSV-файлов", len(all_files))
     total_graphs = sum(len(v) for v in st.session_state.graphs.values())
-    st.metric("Создано графиков", total_graphs)
+
+    st.markdown(
+        f"""
+        <div class="header-container">
+            <div style="font-size: 2.6em; font-weight: 600; margin-bottom: 6px;">
+                Прогноз самовозгорания угля
+            </div>
+            <div style="font-size: 7em; font-weight: 600; margin-bottom: 24px;">
+                {now.strftime("%d.%m.%Y %H:%M")}
+            </div>
+            <div style="font-size: 1em; opacity: 0.95;">
+                CSV-файлов: {len(all_files)} &nbsp; • &nbsp; Создано графиков: {total_graphs}
+            </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        add_weather_btn = st.button("Добавить новый файл погоды", key="add_weather_file")
+    with col2:
+        generate_report_btn = st.button("Сгенерировать отчет", key="generate_report")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if add_weather_btn:
+        st.session_state.show_upload_weather = True
+        st.session_state.trigger_report = False  # mutually exclusive if needed
+    if generate_report_btn:
+        st.session_state.trigger_report = True
+        st.session_state.show_upload_weather = False
+
 
 def render_buttons():
-    """
-    Renders the main category buttons.
-    """
-    st.subheader("Быстрое создание графиков")
+    """Renders quick-create buttons for each category."""
+    st.markdown("## Быстрое создание графиков")
     cols_btn = st.columns(4)
+    if cols_btn[0].button("Выгрузка/Отгрузка", use_container_width=True):
+        show_supplies_dialog()
+    if cols_btn[1].button("Самовозгорания", use_container_width=True):
+        show_fires_dialog()
+    if cols_btn[2].button("Температура", use_container_width=True):
+        show_temperature_dialog()
+    if cols_btn[3].button("Погода", use_container_width=True):
+        show_weather_dialog()
 
-    if cols_btn[0].button("1. Выгрузка на склад и отгрузка", key="btn_supplies"):
-        st.session_state.show_config["supplies"] = True
-    if cols_btn[1].button("2. Информация о самовозгораниях", key="btn_fires"):
-        st.session_state.show_config["fires"] = True
-    if cols_btn[2].button("3. Показатели температуры в штабелях", key="btn_temp"):
-        st.session_state.show_config["temperature"] = True
-    if cols_btn[3].button("4. Погода", key="btn_weather"):
-        st.session_state.show_config["weather"] = True
 
 def render_instructions():
-    """
-    Renders the user instructions in the sidebar.
-    """
-    st.sidebar.markdown("### Инструкция пользователя")
+    """Renders user instructions in the sidebar."""
+    st.sidebar.button("Инструкция пользователя", key="sidebar_instructions", use_container_width=True)
+    st.sidebar.markdown("### Как пользоваться")
     st.sidebar.write("""
     1. Нажмите одну из 4 кнопок.
     2. Настройте:
-       - Тип графика
+       - Колонку с датой
        - Параметры (ось Y)
        - Период (дней)
        - Название (или оставьте пустым)
@@ -258,3 +131,56 @@ def render_instructions():
     5. При следующем запуске графики загрузятся автоматически.
     """)
 
+
+def render_main_tabs():
+    """Renders tabbed sections for each chart category."""
+    tab_titles = ["Выгрузка/Отгрузка", "Самовозгорания", "Температура", "Погода"]
+    tabs = st.tabs(tab_titles)
+
+    with tabs[0]:
+        render_section("supplies", "Выгрузка и отгрузка на склад")
+    with tabs[1]:
+        render_section("fires", "Информация о самовозгораниях")
+    with tabs[2]:
+        render_section("temperature", "Показатели температуры в штабелях")
+    with tabs[3]:
+        render_section("weather", "Погодные условия")
+
+
+# Entry point
+def render_app():
+    """
+    Main entry point for the entire UI.
+    Initializes session state and renders all components.
+    """
+    if "initialized" not in st.session_state:
+        saved = load_schedule()
+        st.session_state.graphs = {
+            "supplies": saved["supplies"],
+            "fires": saved["fires"],
+            "temperature": saved["temperature"],
+            "weather": saved["weather"]
+        }
+        st.session_state.next_id = saved.get("next_id", 0)
+        st.session_state.initialized = True
+
+    # Initialize optional flags
+    if "show_upload_weather" not in st.session_state:
+        st.session_state.show_upload_weather = False
+    if "trigger_report" not in st.session_state:
+        st.session_state.trigger_report = False
+
+    render_header()
+
+    # Conditionally render dynamic sections
+    if st.session_state.show_upload_weather:
+        handle_add_weather_file()
+
+    if st.session_state.trigger_report:
+        generate_comprehensive_report()
+
+    render_instructions()
+    render_global_weather()
+    render_buttons()
+    st.divider()
+    render_main_tabs()
