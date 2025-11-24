@@ -1,5 +1,4 @@
 # modules/global_weather.py
-
 """
 Module for rendering the global weather visualization panel.
 Displays aggregated meteorological data across multiple years with daily averaging.
@@ -12,9 +11,11 @@ import glob
 import pandas as pd
 import plotly.express as px
 from datetime import timedelta
-from modules.data_loader import load_csv
+from .logger import get_app_logger
+from .data_loader import load_csv
 from constants import WEATHER_DIR
 
+logger = get_app_logger()
 
 def render_global_weather():
     """
@@ -25,14 +26,18 @@ def render_global_weather():
     @return: None
     """
     st.markdown("## Метеоданные")
+    logger.debug("Отображение секции метеоданных")
 
     if not os.path.exists(WEATHER_DIR):
-        st.error("Папка с метеоданными не найдена")
+        error_msg = "Папка с метеоданными не найдена"
+        logger.error(error_msg)
+        st.error(error_msg)
         return
 
     # Scan for weather files
     weather_files = glob.glob(os.path.join(WEATHER_DIR, "weather_data_*.csv"))
     if not weather_files:
+        logger.info("Файлы метеоданных отсутствуют")
         st.info("Нет файлов метеоданных")
         return
 
@@ -44,13 +49,16 @@ def render_global_weather():
             year = int(basename.replace("weather_data_", "").replace(".csv", ""))
             years.append(year)
         except ValueError:
+            logger.debug(f"Пропущен файл с некорректным именем: {basename}")
             continue
 
     if not years:
+        logger.warning("Не найдено файлов в формате weather_data_YYYY.csv")
         st.info("Не найдено файлов в формате weather_data_YYYY.csv")
         return
 
     years = sorted(set(years), reverse=False)
+    logger.debug(f"Обнаружены годы метеоданных: {years}")
 
     # UI Controls
     with st.container():
@@ -75,6 +83,7 @@ def render_global_weather():
             days = st.slider("Дней для отображения", 1, 365, 90, key="global_weather_days")
 
         if not selected_years:
+            logger.info("Не выбрано ни одного года для отображения метеоданных")
             st.info("Выберите хотя бы один год")
             return
 
@@ -89,10 +98,14 @@ def render_global_weather():
                 df["Год"] = str(year)
                 df["ДеньМесяц"] = df["date"].dt.strftime("%m-%d")
                 all_dfs.append(df)
+                logger.debug(f"Загружены метеоданные за {year} г. ({len(df)} записей)")
             else:
+                warning_msg = f"Данные за {year} г. недоступны или отсутствует колонка 'date'"
+                logger.warning(warning_msg)
                 st.warning(f"Данные за {year} г. недоступны")
 
         if not all_dfs:
+            logger.info("Нет валидных данных для отображения метеоданных")
             st.info("Нет данных для отображения")
             return
 
@@ -125,6 +138,7 @@ def render_global_weather():
                 plot_data.append(yearly_avg)
 
         if not plot_data:
+            logger.info("Нет данных для построения графика метеоданных")
             st.info("Нет данных для отображения")
             return
 
@@ -132,16 +146,18 @@ def render_global_weather():
         final_df["Дата"] = pd.to_datetime("2020-" + final_df["ДеньМесяц"], errors="coerce")
         final_df = final_df.dropna(subset=["Дата"]).sort_values("Дата")
 
-        # Apply day limit: keep only last N days
+        # Apply day limit
         max_date = final_df["Дата"].max()
         min_date = max_date - timedelta(days=days)
         final_df = final_df[(final_df["Дата"] >= min_date) & (final_df["Дата"] <= max_date)]
 
         if final_df.empty:
+            logger.info(f"Нет метеоданных за последние {days} дней")
             st.info(f"Нет данных за последние {days} дней")
             return
 
         final_df["Линия"] = final_df["Параметр"] + " (" + final_df["Год"] + ")"
+        logger.info(f"Построен график метеоданных: {len(selected_years)} лет, параметры={y_cols}, дней={days}")
 
         fig = px.line(
             final_df,
@@ -160,4 +176,5 @@ def render_global_weather():
         )
         st.plotly_chart(fig, use_container_width=True, key=f"global_weather_{'_'.join(map(str, selected_years))}")
     else:
+        logger.info("Не выбраны параметры для отображения метеоданных")
         st.info("Выберите хотя бы один параметр")

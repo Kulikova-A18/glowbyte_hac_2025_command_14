@@ -1,0 +1,58 @@
+{
+  "supplies": [
+    {
+      "id": 0,
+      "file": "data\\supplies\\supplies.csv",
+      "date_col": "ВыгрузкаНаСклад",
+      "y_cols": [
+        "На склад, тн",
+        "На судно, тн"
+      ],
+      "days": 20,
+      "plot_type": "Линейный",
+      "title": "supplies_На склад, тн_На судно, тн"
+    }
+  ],
+  "fires": [
+    {
+      "id": 1,
+      "file": "data\\fires\\fires.csv",
+      "date_col": "Дата составления",
+      "y_cols": [
+        "Штабель",
+        "Груз"
+      ],
+      "days": 13,
+      "plot_type": "Гистограмма",
+      "title": "fires_Штабель_Груз"
+    }
+  ],
+  "temperature": [
+    {
+      "id": 2,
+      "file": "data\\temperature\\temperature.csv",
+      "date_col": "Дата акта",
+      "y_cols": [
+        "Максимальная температура"
+      ],
+      "days": 90,
+      "plot_type": "Линейный",
+      "title": "temperature_Максимальная температура"
+    }
+  ],
+  "weather": [
+    {
+      "id": 3,
+      "file": "data\\weather_data\\weather_data_2015.csv",
+      "date_col": "date",
+      "y_cols": [
+        "t",
+        "precipitation"
+      ],
+      "days": 90,
+      "plot_type": "Линейный",
+      "title": "weather_data_2015_t_precipitation"
+    }
+  ],
+  "next_id": 4
+}

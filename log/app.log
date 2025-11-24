@@ -1,0 +1,46 @@
+2025-11-24 14:10:38 | INFO     | CoalFireApp | render_app:199 | Запуск основного UI приложения
+2025-11-24 14:10:38 | INFO     | CoalFireApp | load_schedule:26 | Настройки графиков успешно загружены из schedule.json
+2025-11-24 14:10:38 | INFO     | CoalFireApp | render_global_weather:162 | Построен график метеоданных: 1 лет, параметры=['t', 'precipitation', 'humidity', 'v_max'], дней=90
+2025-11-24 14:10:38 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: supplies_На склад, тн_На судно, тн
+2025-11-24 14:10:38 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: fires_Штабель_Груз
+2025-11-24 14:10:38 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: temperature_Максимальная температура
+2025-11-24 14:10:38 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: weather_data_2015_t_precipitation
+2025-11-24 14:10:44 | INFO     | CoalFireApp | render_app:199 | Запуск основного UI приложения
+2025-11-24 14:10:44 | INFO     | CoalFireApp | render_header:142 | Запущено переобучение модели
+2025-11-24 14:10:44 | INFO     | CoalFireApp | train_and_save_model:25 | Начало обучения модели прогноза самовозгорания угля
+2025-11-24 14:10:44 | INFO     | CoalFireApp | train_and_save_model:57 | Загружены данные: fires (486, 8), supplies (6323, 7), temperature (4106, 7)
+2025-11-24 14:10:44 | INFO     | CoalFireApp | train_and_save_model:74 | Всего погодных записей: 61344
+2025-11-24 14:10:44 | INFO     | CoalFireApp | train_and_save_model:114 | Создан календарь штабелей: 31694 записей
+2025-11-24 14:10:44 | INFO     | CoalFireApp | train_and_save_model:137 | Размечено 1455 рисковых дней на основе 486 событий пожаров
+2025-11-24 14:10:44 | INFO     | CoalFireApp | train_and_save_model:194 | Сформированы признаки: (31694, 10), целевая переменная с долей риска 0.0185
+2025-11-24 14:10:47 | INFO     | CoalFireApp | train_and_save_model:214 | Модель успешно обучена
+2025-11-24 14:10:47 | INFO     | CoalFireApp | train_and_save_model:221 | Модель сохранена: C:\Users\USER\Desktop\glowbyte_hac_2025_command_14\data\pkl\model.pkl
+2025-11-24 14:10:47 | INFO     | CoalFireApp | train_and_save_model:222 | LabelEncoder сохранён: C:\Users\USER\Desktop\glowbyte_hac_2025_command_14\data\pkl\label_encoder.pkl
+2025-11-24 14:10:47 | INFO     | CoalFireApp | train_and_save_model:223 | Размер обучающей выборки: (25355, 10)
+2025-11-24 14:10:47 | INFO     | CoalFireApp | train_and_save_model:224 | Доля рисковых дней: 1.85%
+2025-11-24 14:10:47 | INFO     | CoalFireApp | render_header:145 | Модель успешно пересоздана
+2025-11-24 14:10:47 | INFO     | CoalFireApp | render_global_weather:162 | Построен график метеоданных: 1 лет, параметры=['t', 'precipitation', 'humidity', 'v_max'], дней=90
+2025-11-24 14:10:47 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: supplies_На склад, тн_На судно, тн
+2025-11-24 14:10:47 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: fires_Штабель_Груз
+2025-11-24 14:10:47 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: temperature_Максимальная температура
+2025-11-24 14:10:47 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: weather_data_2015_t_precipitation
+2025-11-24 14:10:50 | INFO     | CoalFireApp | render_app:199 | Запуск основного UI приложения
+2025-11-24 14:10:50 | INFO     | CoalFireApp | render_header:138 | Запущен процесс прогнозирования
+2025-11-24 14:10:50 | INFO     | CoalFireApp | run_prediction_and_generate_report:77 | Запущен процесс прогнозирования риска самовозгорания
+2025-11-24 14:10:50 | INFO     | CoalFireApp | run_prediction_and_generate_report:96 | Загружен файл прогноза: 5 записей
+2025-11-24 14:10:50 | INFO     | CoalFireApp | get_predictor:126 | Инициализация ленивого экземпляра CoalFirePredictor
+2025-11-24 14:10:50 | INFO     | CoalFireApp | load_model:27 | Модель загружена: <class 'sklearn.ensemble._forest.RandomForestClassifier'>
+2025-11-24 14:10:50 | INFO     | CoalFireApp | load_encoder:44 | LabelEncoder загружен.
+2025-11-24 14:10:50 | INFO     | CoalFireApp | add_predictions_to_df:110 | Запущено добавление предсказаний (порог=0.1) для 5 записей
+2025-11-24 14:10:50 | INFO     | CoalFireApp | add_predictions_to_df:116 | Предсказания добавлены: 3 записей с высоким риском
+2025-11-24 14:10:50 | INFO     | CoalFireApp | run_prediction_and_generate_report:100 | Прогноз успешно выполнен
+2025-11-24 14:10:50 | INFO     | CoalFireApp | run_prediction_and_generate_report:105 | Результаты сохранены: output\prediction_results.csv
+2025-11-24 14:10:50 | INFO     | CoalFireApp | run_prediction_and_generate_report:111 | Аналитический отчёт сохранён: output\prediction_report.txt
+2025-11-24 14:10:50 | INFO     | CoalFireApp | run_prediction_and_generate_report:119 | Прогноз: 3/5 записей с высоким риском
+2025-11-24 14:10:57 | INFO     | CoalFireApp | render_app:199 | Запуск основного UI приложения
+2025-11-24 14:10:57 | INFO     | CoalFireApp | render_header:117 | Пользователь вернулся на главную страницу
+2025-11-24 14:10:57 | INFO     | CoalFireApp | render_global_weather:162 | Построен график метеоданных: 1 лет, параметры=['t', 'precipitation', 'humidity', 'v_max'], дней=90
+2025-11-24 14:10:57 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: supplies_На склад, тн_На судно, тн
+2025-11-24 14:10:57 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: fires_Штабель_Груз
+2025-11-24 14:10:57 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: temperature_Максимальная температура
+2025-11-24 14:10:57 | INFO     | CoalFireApp | plot_series:131 | График успешно отображён: weather_data_2015_t_precipitation

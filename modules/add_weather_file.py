@@ -1,9 +1,12 @@
-# models/add_weather_file.py
+# modules/add_weather_file.py
 
 import streamlit as st
 import pandas as pd
 from pathlib import Path
+from .logger import get_app_logger
 from constants import DATA_WEATHER_DIR
+
+logger = get_app_logger()
 
 REQUIRED_COLUMNS = {
     "date", "t", "p", "humidity", "precipitation",
@@ -45,16 +48,29 @@ def handle_add_weather_file():
 
     if uploaded_file is not None:
         filename = uploaded_file.name.strip()
+        if not filename.lower().startswith('weather_data_'):
+            warning_msg = "Загружен файл без названия weather_data_"
+            logger.warning(warning_msg)
+            st.warning("Пожалуйста, загрузите файл с расширением weather_data_**.csv**")
+            return
+
         if not filename.lower().endswith('.csv'):
-            st.warning("Пожалуйста, загрузите файл с расширением **.csv**")
+            warning_msg = "Загружен файл без расширения .csv"
+            logger.warning(warning_msg)
+            st.warning("Пожалуйста, загрузите файл с расширением weather_data_**.csv**")
             return
 
         try:
+            logger.info(f"Начата валидация файла погоды: {filename}")
+
+            # Читаем только заголовки
             df = pd.read_csv(uploaded_file, nrows=0)
             actual_columns = set(df.columns)
             missing_columns = REQUIRED_COLUMNS - actual_columns
 
             if missing_columns:
+                error_msg = f"Файл '{filename}' не содержит обязательные столбцы: {sorted(missing_columns)}"
+                logger.warning(error_msg)
                 st.error(
                     "Файл не содержит все обязательные столбцы.\n\n"
                     "**Отсутствующие параметры:**\n"
@@ -65,20 +81,30 @@ def handle_add_weather_file():
                 )
                 return
 
+            # Сохраняем файл
             file_path = weather_data_dir / filename
             uploaded_file.seek(0)
             with open(file_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
+            success_msg = f"Файл погоды '{filename}' успешно сохранён в {weather_data_dir}"
+            logger.info(success_msg)
             st.success(f"Файл **{filename}** успешно загружен и сохранён в `{weather_data_dir}`")
+
             if "show_upload_weather" in st.session_state:
                 st.session_state.show_upload_weather = False
 
         except pd.errors.EmptyDataError:
+            error_msg = "Загружен пустой CSV-файл"
+            logger.error(error_msg)
             st.error("Файл пуст. Загрузите корректный CSV-файл с данными.")
         except pd.errors.ParserError as e:
+            error_msg = f"Ошибка парсинга CSV ({filename}): {e}"
+            logger.error(error_msg, exc_info=True)
             st.error(f"Ошибка при разборе CSV: {str(e)}")
         except Exception as e:
+            error_msg = f"Неизвестная ошибка при обработке файла погоды ({filename}): {e}"
+            logger.error(error_msg, exc_info=True)
             st.error(f"Ошибка при обработке файла: {e}")
     else:
         st.info("Ожидается загрузка CSV-файла с погодными данными.")

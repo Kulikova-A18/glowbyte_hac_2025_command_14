@@ -1,3 +1,4 @@
+# modules/ui_components.py
 """
 Main UI composition module. Orchestrates all components.
 All displayed text is in Russian.
@@ -6,29 +7,31 @@ All displayed text is in Russian.
 import streamlit as st
 import os
 import datetime
-from modules.global_weather import render_global_weather
-from modules.config_forms import (
+from .logger import get_app_logger  # ← добавлен импорт логгера
+from .global_weather import render_global_weather
+from .config_forms import (
     show_supplies_dialog,
     show_fires_dialog,
     show_temperature_dialog,
     show_weather_dialog
 )
-from modules.sections import render_section
-from modules.schedule_manager import load_schedule
+from .sections import render_section
+from .schedule_manager import load_schedule
 from constants import DATA_DIR
-from modules.add_weather_file import handle_add_weather_file
-from modules.generate_report import generate_comprehensive_report
+from .add_weather_file import handle_add_weather_file
+from .add_predict_file import show_prediction_requirements, handle_predict_file_upload
+from .generate_report import (
+    generate_comprehensive_report,
+    run_prediction_and_generate_report
+)
+from .model_trainer import train_and_save_model
+
+# Инициализация логгера
+logger = get_app_logger()
 
 
 def render_header():
-    """Renders the main header with date, metrics, and action buttons."""
-    st.set_page_config(
-        page_title="Прогноз самовозгорания угля",
-        layout="wide",
-        initial_sidebar_state="expanded",
-        page_icon=""
-    )
-
+    """Renders the main header with date, metrics, and action buttons (with gradient styling)."""
     st.markdown("""
     <style>
     body {
@@ -81,24 +84,69 @@ def render_header():
             <div style="font-size: 1em; opacity: 0.95;">
                 CSV-файлов: {len(all_files)} &nbsp; • &nbsp; Создано графиков: {total_graphs}
             </div>
+        </div>
         """,
         unsafe_allow_html=True
     )
 
-    col1, col2 = st.columns(2)
+    col1, = st.columns(1)
     with col1:
-        add_weather_btn = st.button("Добавить новый файл погоды", key="add_weather_file")
+        back_to_main_btn = st.button("Главная", key="back_to_main")
+
+    st.markdown("## Добавить погоду")
+    col1, = st.columns(1)
+    with col1:
+        add_weather_btn = st.button("Добавить погоду", key="add_weather_file")
+
+    st.markdown("## Прогноз")
+
+    col2, col4, col6 = st.columns(3)
     with col2:
-        generate_report_btn = st.button("Сгенерировать отчет", key="generate_report")
+        upload_predict_btn = st.button("Добавить predict-файл", key="upload_predict")
+    with col4:
+        predict_btn = st.button("Запустить прогноз", key="run_prediction")
+    with col6:
+        model_btn = st.button("Пересоздать модель", key="model_prediction")
 
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    if add_weather_btn:
-        st.session_state.show_upload_weather = True
-        st.session_state.trigger_report = False  # mutually exclusive if needed
-    if generate_report_btn:
-        st.session_state.trigger_report = True
+    # Handle button states
+    if back_to_main_btn:
         st.session_state.show_upload_weather = False
+        st.session_state.show_upload_predict = False
+        st.session_state.trigger_report = False
+        st.session_state.trigger_prediction = False
+        logger.info("Пользователь вернулся на главную страницу")
+
+    elif add_weather_btn:
+        st.session_state.show_upload_weather = True
+        st.session_state.show_upload_predict = False
+        st.session_state.trigger_report = False
+        st.session_state.trigger_prediction = False
+        logger.info("Активирован режим загрузки погодного файла")
+
+    elif upload_predict_btn:
+        st.session_state.show_upload_predict = True
+        st.session_state.show_upload_weather = False
+        st.session_state.trigger_report = False
+        st.session_state.trigger_prediction = False
+        logger.info("Активирован режим загрузки predict-файла")
+
+    elif predict_btn:
+        st.session_state.trigger_prediction = True
+        st.session_state.show_upload_weather = False
+        st.session_state.show_upload_predict = False
+        st.session_state.trigger_report = False
+        logger.info("Запущен процесс прогнозирования")
+
+    elif model_btn:
+        try:
+            logger.info("Запущено переобучение модели")
+            train_and_save_model()
+            st.sidebar.success("Модель успешно пересоздана!")
+            logger.info("Модель успешно пересоздана")
+        except Exception as e:
+            error_msg = f"Ошибка при переобучении модели: {e}"
+            logger.error(error_msg, exc_info=True)
+            st.sidebar.error(f"Ошибка при обучении: {e}")
 
 
 def render_buttons():
@@ -106,18 +154,20 @@ def render_buttons():
     st.markdown("## Быстрое создание графиков")
     cols_btn = st.columns(4)
     if cols_btn[0].button("Выгрузка/Отгрузка", use_container_width=True):
+        logger.info("Открыт диалог настройки графика: Выгрузка/Отгрузка")
         show_supplies_dialog()
     if cols_btn[1].button("Самовозгорания", use_container_width=True):
+        logger.info("Открыт диалог настройки графика: Самовозгорания")
         show_fires_dialog()
     if cols_btn[2].button("Температура", use_container_width=True):
+        logger.info("Открыт диалог настройки графика: Температура")
         show_temperature_dialog()
     if cols_btn[3].button("Погода", use_container_width=True):
+        logger.info("Открыт диалог настройки графика: Погода")
         show_weather_dialog()
 
 
 def render_instructions():
-    """Renders user instructions in the sidebar."""
-    st.sidebar.button("Инструкция пользователя", key="sidebar_instructions", use_container_width=True)
     st.sidebar.markdown("### Как пользоваться")
     st.sidebar.write("""
     1. Нажмите одну из 4 кнопок.
@@ -133,10 +183,8 @@ def render_instructions():
 
 
 def render_main_tabs():
-    """Renders tabbed sections for each chart category."""
     tab_titles = ["Выгрузка/Отгрузка", "Самовозгорания", "Температура", "Погода"]
     tabs = st.tabs(tab_titles)
-
     with tabs[0]:
         render_section("supplies", "Выгрузка и отгрузка на склад")
     with tabs[1]:
@@ -147,40 +195,44 @@ def render_main_tabs():
         render_section("weather", "Погодные условия")
 
 
-# Entry point
 def render_app():
-    """
-    Main entry point for the entire UI.
-    Initializes session state and renders all components.
-    """
+    logger.info("Запуск основного UI приложения")
     if "initialized" not in st.session_state:
         saved = load_schedule()
         st.session_state.graphs = {
-            "supplies": saved["supplies"],
-            "fires": saved["fires"],
-            "temperature": saved["temperature"],
-            "weather": saved["weather"]
+            "supplies": saved.get("supplies", []),
+            "fires": saved.get("fires", []),
+            "temperature": saved.get("temperature", []),
+            "weather": saved.get("weather", [])
         }
         st.session_state.next_id = saved.get("next_id", 0)
         st.session_state.initialized = True
+        logger.debug("Состояние приложения инициализировано из schedule.json")
 
-    # Initialize optional flags
-    if "show_upload_weather" not in st.session_state:
-        st.session_state.show_upload_weather = False
-    if "trigger_report" not in st.session_state:
-        st.session_state.trigger_report = False
+    # Initialize all flags
+    for flag in [
+        "show_upload_weather",
+        "show_upload_predict",
+        "trigger_report",
+        "trigger_prediction"
+    ]:
+        if flag not in st.session_state:
+            st.session_state[flag] = False
 
     render_header()
 
-    # Conditionally render dynamic sections
     if st.session_state.show_upload_weather:
         handle_add_weather_file()
-
-    if st.session_state.trigger_report:
+    elif st.session_state.show_upload_predict:
+        show_prediction_requirements()
+        handle_predict_file_upload()
+    elif st.session_state.trigger_report:
         generate_comprehensive_report()
-
-    render_instructions()
-    render_global_weather()
-    render_buttons()
-    st.divider()
-    render_main_tabs()
+    elif st.session_state.trigger_prediction:
+        run_prediction_and_generate_report()
+    else:
+        render_instructions()
+        render_global_weather()
+        render_buttons()
+        st.divider()
+        render_main_tabs()

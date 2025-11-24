@@ -1,5 +1,11 @@
 # app.py
-from modules.ui_components import render_app
+import streamlit as st
 
-if __name__ == "__main__":
-    render_app()
+st.set_page_config(
+    page_title="Прогноз самовозгорания угля",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+from modules.ui_components import render_app
+render_app()
